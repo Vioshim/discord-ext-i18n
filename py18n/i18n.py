@@ -111,12 +111,12 @@ class I18n:
             if not should_fallback or locale == self._fallback:
                 raise InvalidTranslationKeyError(key, locale, self._fallback)
 
-            try:
-                return self._languages[self._fallback].get_text(
-                    key,
-                    list_formatter=list_formatter,
-                    use_translations=use_translations,
-                    **kwargs,
-                )
-            except KeyError:
-                raise InvalidTranslationKeyError(key, locale, self._fallback)
+        try:
+            return self._languages[self._fallback].get_text(
+                key,
+                list_formatter=list_formatter,
+                use_translations=use_translations,
+                **kwargs,
+            )
+        except KeyError:
+            raise InvalidTranslationKeyError(key, locale, self._fallback)
