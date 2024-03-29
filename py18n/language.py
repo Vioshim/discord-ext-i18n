@@ -17,10 +17,9 @@
 
 
 from dataclasses import InitVar, dataclass, field
-from functools import partial
 from typing import Callable, Optional
 
-from flatdict import FlatDict
+from flatdict import FlatterDict
 
 from .exceptions import TranslationKeyEmptyError
 
@@ -34,17 +33,17 @@ class SafeDict(dict):
 class Language:
     name: str
     code: str
-    translations: FlatDict[str, str] = field(
-        default_factory=partial(FlatDict, delimiter="."),
-        hash=False,
-    )
+    translations: FlatterDict[str, str] = field(default=None, hash=False)
     delimiter: InitVar[str] = "."
     dict_class: InitVar[type[dict]] = dict
 
     def __post_init__(self, delimiter: str = ".", dict_class: type[dict] = dict):
-        self.translations = FlatDict(
-            self.translations, delimiter=delimiter, dict_class=dict_class
-        )
+        if self.translations is None:
+            self.translations = FlatterDict(
+                self.translations,
+                delimiter=delimiter,
+                dict_class=dict_class,
+            )
 
     def _get_translation_from_key(self, key: str, raise_on_empty: bool = True) -> str:
         """

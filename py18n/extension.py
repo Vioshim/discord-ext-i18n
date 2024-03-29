@@ -184,16 +184,15 @@ class I18nExtension(I18n):
                 Language(
                     name=name,
                     code=code,
-                    translations=item,
-                    delimiter=delimiter,
-                    dict_class=dict_cls,
+                    translations=item
                 )
                 for name, code, item in map(
                     lambda x: (
                         *method(x.name),
                         FlatterDict(
                             from_json(open(x, "r", encoding="utf-8").read()),
-                            delimiter=".",
+                            delimiter=delimiter,
+                            dict_class=dict_cls,
                         ),
                     ),
                     route.glob(pattern),
@@ -203,6 +202,19 @@ class I18nExtension(I18n):
             bot=bot,
         )
 
+    @classmethod
+    def unload(cls, bot: commands.Bot, remove_before_invoke: bool = False):
+        """Unload the languages from the class"""
+
+        i18n = cls.default_instance
+        if i18n is None:
+            raise NoDefaultI18nInstanceError()
+
+        if remove_before_invoke:
+            bot._before_invoke = None
+        i18n._bot = None
+        i18n._current_locale = contextvars.ContextVar("_current_locale")
 
 load = I18nExtension.load
+unload = I18nExtension.unload
 _ = I18nExtension.contextual_get_text
