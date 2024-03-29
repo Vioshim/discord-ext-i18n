@@ -20,8 +20,9 @@ from dataclasses import InitVar, dataclass, field
 from functools import partial
 from typing import Callable, Optional
 
-from exceptions import TranslationKeyEmptyError
 from flatdict import FlatDict
+
+from .exceptions import TranslationKeyEmptyError
 
 
 class SafeDict(dict):
