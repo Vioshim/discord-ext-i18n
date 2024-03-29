@@ -18,7 +18,7 @@
 
 import contextvars
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import Callable, Optional
 
 from discord import Locale
 from discord.ext import commands
@@ -28,9 +28,6 @@ from flatdict import FlatterDict
 from .exceptions import NoDefaultI18nInstanceError
 from .i18n import I18n
 from .language import Language
-
-if TYPE_CHECKING:
-    from discord.utils import MaybeAwaitableFunc, P, T
 
 
 def get_locale_or_fallback(fallback: str | int | Locale):
@@ -61,11 +58,11 @@ class I18nExtension(I18n):
         languages: list[Language],
         fallback: str | int | Locale,
         bot: Optional[commands.Bot] = None,
-        get_locale_func: MaybeAwaitableFunc[P, T] = None,
+        get_locale_func: Callable[[commands.Context], str] = None,
         default: bool = True,
     ) -> None:
         fallback = fallback if isinstance(fallback, (str, int)) else str(fallback)
-        super().__init__(languages, fallback)
+        super(I18nExtension, self).__init__(languages, fallback)
         self._current_locale = contextvars.ContextVar("_current_locale")
         self._bot = None
 
@@ -78,7 +75,7 @@ class I18nExtension(I18n):
     def init_bot(
         self,
         bot: commands.Bot,
-        get_locale_func: MaybeAwaitableFunc[P, T] = None,
+        get_locale_func: Callable[[commands.Context], str] = None,
     ):
         """Initialize the bot with this extension.
 
@@ -86,7 +83,7 @@ class I18nExtension(I18n):
         ----------
         bot : commands.Bot
             The bot to initialize with.
-        get_locale_func : MaybeAwaitableFunc[P, T], optional
+        get_locale_func : Callable[[commands.Context], str], optional
             A function to get the locale from the context, by default None.
         """
         self._bot = bot
