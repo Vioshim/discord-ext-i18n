@@ -22,14 +22,14 @@ class Py18nError(KeyError):
 
 class InvalidLocaleError(Py18nError):
     def __init__(self, locale: str) -> None:
-        super().__init__(f"Given locale '{locale}' does not exist!")
+        super().__init__(f"Given locale {locale!r} does not exist!")
         self.locale = locale
 
 
 class InvalidTranslationKeyError(Py18nError):
     def __init__(self, key: str, locale: str, fallback: str) -> None:
         super().__init__(
-            f"Translation '{key}' not found for locale '{locale}', nor fallback '{fallback}'"
+            f"Translation {key!r} not found for locale {locale!r}, nor fallback {fallback!r}"
         )
         self.key = key
         self.locale = locale
@@ -39,7 +39,7 @@ class InvalidTranslationKeyError(Py18nError):
 class InvalidFallbackError(Py18nError):
     def __init__(self, fallback: str | int) -> None:
         super().__init__(
-            f"Invalid fallback: '{fallback}'. Fallback must be a valid locale code."
+            f"Invalid fallback: {fallback!r}. Fallback must be a valid locale code."
         )
         self.fallback = fallback
 
@@ -52,7 +52,7 @@ class NoDefaultI18nInstanceError(Py18nError):
 class TranslationKeyEmptyError(Py18nError):
     def __init__(self, key: str, locale: str) -> None:
         super().__init__(
-            f"Translation for key '{key}' in language '{locale}' is empty."
+            f"Translation for key {key!r} in language {locale!r} is empty."
         )
         self.key = key
         self.locale = locale
