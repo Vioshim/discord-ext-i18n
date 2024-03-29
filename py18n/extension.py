@@ -190,7 +190,7 @@ class I18nExtension(I18n):
                 )
                 for name, code, item in map(
                     lambda x: (
-                        *method(x),
+                        *method(x.name),
                         FlatterDict(
                             from_json(open(x, "r", encoding="utf-8").read()),
                             delimiter=".",
