@@ -17,21 +17,23 @@
 
 
 from os import path
+
 from setuptools import setup
 
-with open(path.join(path.abspath(path.dirname(__file__)), 'README.md'), encoding='utf-8') as f:
+PATH = path.join(path.abspath(path.dirname(__file__)), "README.md")
+with open(PATH, encoding="utf-8") as f:
     long_description = f.read()
 
-setup(name='Py18n',
-      version='1.1.1',
-      description='I18n for Discord.py',
-      author='starsflower',
-      url='https://github.com/starsflower/py18n',
-      packages=['py18n'],
-      package_dir={'py18n': './py18n'},
-      install_requires=['discord.py'],
-
-      # Description
-      long_description=long_description,
-      long_description_content_type='text/markdown'
+setup(
+    name="Py18n",
+    version="1.1.1",
+    description="I18n for Discord.py",
+    author="starsflower",
+    url="https://github.com/starsflower/py18n",
+    packages=["py18n"],
+    package_dir={"py18n": "./py18n"},
+    install_requires=["discord.py"],
+    # Description
+    long_description=long_description,
+    long_description_content_type="text/markdown",
 )

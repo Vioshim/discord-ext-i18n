@@ -15,23 +15,39 @@
 # You should have received a copy of the GNU General Public License
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Dict
+
+from dataclasses import InitVar, dataclass, field
+from functools import partial
+from typing import Callable, Optional
+
+from exceptions import TranslationKeyEmptyError
+from flatdict import FlatDict
 
 
 class SafeDict(dict):
-    def __missing__(self, key):
-        return "{" + key + "}"
+    def __missing__(self, key: str):
+        return f"{{{key}}}"
 
 
+@dataclass(slots=True, unsafe_hash=True)
 class Language:
-    def __init__(self, name: str, code: str, translations: Dict[str, str]) -> None:
-        self.name = name
-        self.code = code
-        self._translations = translations
+    name: str
+    code: str
+    translations: FlatDict[str, str] = field(
+        default_factory=partial(FlatDict, delimiter="."),
+        hash=False,
+    )
+    delimiter: InitVar[str] = "."
+    dict_class: InitVar[type[dict]] = dict
+
+    def __post_init__(self, delimiter: str = ".", dict_class: type[dict] = dict):
+        self.translations = FlatDict(
+            self.translations, delimiter=delimiter, dict_class=dict_class
+        )
 
     def _get_translation_from_key(self, key: str, raise_on_empty: bool = True) -> str:
         """
-        Get the translation string from a given key. The default behaviour 
+        Get the translation string from a given key. The default behaviour
         supports simple key-translation access and dotted nesting.
 
         Parameters
@@ -48,29 +64,26 @@ class Language:
 
         Raises
         ------
-        KeyError
-            The function attempted to access a key when using dotted nesting,
-            but the value did not have this key
-        KeyError
-            If ``raise_on_empty`` is True, the value found is an empty string
+        TranslationKeyEmptyError
+            The translation was empty and `raise_on_empty` was set to True
+
+        Examples
+        --------
+        >>> language = Language("English", "en", {
+            "hello": "Hello",
+            "nested": {
+                "key": "Nested key",
+            },
+        })
+        >>> language._get_translation_from_key("nested.hello")
+        "Nested key"
         """
-        if "." in key:
-            parts = key.split(".")
-            current = self._translations[parts[0]]
-            for part in parts[1:]:
-                if part in current:
-                    current = current[part]
-                else:
-                    raise KeyError(f"{part} was not found under {current}")
-        else:
-            current = self._translations[key]
+        result = self.translations.get(key, "")
+        if raise_on_empty and result == "":
+            raise TranslationKeyEmptyError(key, self.code)
+        return result
 
-        if raise_on_empty and current == "":
-            raise KeyError("Resultant string was empty")
-
-        return current
-
-    def join_list(self, value: list, connector: str) -> str:
+    def join_list(self, value: list[str], connector: str) -> str:
         """
         Sensibly join list elements together
 
@@ -89,18 +102,9 @@ class Language:
         str
             The list as a "sensible" string
         """
-        # Stringify everything first
-        value = [str(v) for v in value]
-        if len(value) == 1:
-            return value[0]
-        elif len(value) == 2:
-            # Just two items
-            return connector.join(value)
-        else:
-            # All but last connected by ",", and last connected by connector
-            return connector.join([','.join(value[:-1]), value[-1]])
+        return connector.join(value)
 
-    def and_(self, value: list, *args, **kwargs) -> str:
+    def and_(self, value: list[str], *args, **kwargs) -> str:
         """
         Wraps :func:`join_list` but uses the translation key ``and_``
 
@@ -114,9 +118,11 @@ class Language:
         str
             The list as a "sensible" string
         """
-        return self.join_list(value, " " + self._get_translation_from_key("and_",  *args, **kwargs) + " ")
+        return self.join_list(
+            value, f" {self._get_translation_from_key('and_', *args, **kwargs)} "
+        )
 
-    def or_(self, value: list, *args, **kwargs) -> str:
+    def or_(self, value: list[str], *args, **kwargs) -> str:
         """
         Wraps :func:`join_list` but uses the translation key ``or_``
 
@@ -130,15 +136,17 @@ class Language:
         str
             The list as a "sensible" string
         """
-        return self.join_list(value, " " + self._get_translation_from_key("or_",  *args, **kwargs) + " ")
+        return self.join_list(
+            value, f" {self._get_translation_from_key('or_', *args, **kwargs)} "
+        )
 
     def get_text(
         self,
         key: str,
-        list_formatter: bool = None,
+        list_formatter: Optional[Callable[[list[str]], str]] = None,
         use_translations: bool = True,
-        safedict=SafeDict,
-        **kwargs
+        safedict: type[dict] = SafeDict,
+        **kwargs,
     ) -> str:
         """
         Get the formatted translation string
@@ -147,7 +155,7 @@ class Language:
         ----------
         key : str
             The key to search for
-        list_formatter : bool, optional
+        list_formatter : Optional[Callable[[list[str]], str]], optional
             Function to format lists, by default None
 
             .. seealso :: functions :func:`and_`, :func:`or_`, :func:`join_list`
@@ -165,9 +173,9 @@ class Language:
 
                 >>> language.get_text("you_lost")
                 "You lost the game"
-        safedict : Any, optional
+        safedict : type[dict], optional
             Class to use as a "Safe dict", by default :cls:`SafeDict`
-        **kwargs : dict, optional
+        **kwargs :  dict[str, Any], optional
             Parameters to pass to translation
 
         Returns
@@ -177,24 +185,17 @@ class Language:
 
         Raises
         ------
-        KeyError
+        TranslationKeyEmptyError
             The translation was not found (raised through `_get_translation_from_key`)
         """
         base_string = self._get_translation_from_key(key)
-
-        # Sanitize passed arguments
-        params = kwargs.copy()
-        for key, value in params.items():
-            if list_formatter and isinstance(value, list):
-                params[key] = list_formatter(value)
-
-        # Create the dict using given kwargs
-        mapping = params
-        if use_translations:
-            # Put `**kwargs` after to prioritize given translations
-            mapping = {
-                **self._translations,
-                **mapping
-            }
-
+        formatted_args = {
+            k: list_formatter(v) if list_formatter and isinstance(v, list) else v
+            for k, v in kwargs.items()
+        }
+        mapping = (
+            {**self.translations, **formatted_args}
+            if use_translations
+            else formatted_args
+        )
         return base_string.format_map(safedict(**mapping))

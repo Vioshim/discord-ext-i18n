@@ -15,56 +15,41 @@
 # You should have received a copy of the GNU General Public License
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
-from typing import List, Union
 
+from discord import Locale
+
+from .exceptions import (
+    InvalidFallbackError,
+    InvalidLocaleError,
+    InvalidTranslationKeyError,
+)
 from .language import Language
 
 
-class Py18nError(KeyError):
-    pass
-
-
-class InvalidLocaleError(Py18nError):
-    def __init__(self, *args, locale: str) -> None:
-        super().__init__(*args)
-        self.locale = locale
-
-
-class InvalidTranslationKeyError(Py18nError):
-    def __init__(self, *args, key: str) -> None:
-        super().__init__(*args)
-        self.key = key
-
-
 class I18n:
-    def __init__(self, languages: List[Language], fallback: Union[str, int]) -> None:
-        self._languages = {
-            language.code: language
-            for language in languages
-        }
+    __slots__ = ("_languages", "_fallback")
 
-        self._fallback = None
-        if isinstance(fallback, str):
-            self._fallback = fallback
+    def __init__(self, languages: list[Language], fallback: str | int | Locale) -> None:
+        self._languages = {language.code: language for language in languages}
 
-            if self._fallback not in self._languages:
-                raise KeyError(
-                    f"No language found with code {fallback} as fallback")
+        if isinstance(fallback, (str, Locale)):
+            self._fallback = str(fallback)
         elif isinstance(fallback, int):
-            self._fallback = self._languages[languages[fallback].code]
+            self._fallback = languages[fallback].code
+        else:
+            raise InvalidFallbackError(fallback)
 
-        if self._fallback is None:
-            raise KeyError(
-                f"No fallback language set. Check documentation for correct usage")
+        if self._fallback not in self._languages:
+            raise InvalidLocaleError(self._fallback)
 
     def get_text(
         self,
         key: str,
-        locale: str,
+        locale: int | str | Locale,
         list_formatter: bool = None,
         use_translations: bool = True,
         should_fallback: bool = True,
-        **kwargs
+        **kwargs,
     ) -> str:
         """
         Wraps :func:`Language.get_text` to get translation based on the given locale
@@ -75,6 +60,8 @@ class I18n:
         ----------
         key : str
             The key to search for
+        locale : int | str | Locale
+            The locale to search in
         list_formatter : bool, optional
             Function to format lists, by default None
         use_translations : bool, optional
@@ -95,31 +82,41 @@ class I18n:
             If the key could not be found in the locale, nor in the fallback
             if `should_fallback` is `True`
         """
-        # Get locale
-        if locale not in self._languages:
-            raise InvalidLocaleError(
-                f"Given locale `{locale}` does not exist!", locale=locale)
+        language = self._languages.get(locale)
 
-        language = self._languages[locale]
+        if language is None:
+            if not should_fallback:
+                raise InvalidLocaleError(locale)
+            locale = self._fallback
+            language = self._languages[locale]
 
         try:
-            result = language.get_text(
-                key, list_formatter=list_formatter, use_translations=use_translations, **kwargs)
-        except KeyError as exc:
-            # If we shouldn't fallback or this is the fallback
+            base_string = language.get_text(
+                key,
+                list_formatter=list_formatter,
+                use_translations=use_translations,
+                **kwargs,
+            )
+            formatted_args = {
+                k: list_formatter(v) if list_formatter and isinstance(v, list) else v
+                for k, v in kwargs.items()
+            }
+            mapping = (
+                {**language.translations, **formatted_args}
+                if use_translations
+                else formatted_args
+            )
+            return base_string.format(**mapping)
+        except KeyError:
             if not should_fallback or locale == self._fallback:
-                raise InvalidTranslationKeyError(
-                    f"Translation {key} not found for {locale}!", key=key) from exc
-        else:
-            return result
+                raise InvalidTranslationKeyError(key, locale, self._fallback)
 
-        # We only get here if fallback is enabled and the text wasn't found in
-        # the initial language
-        try:
-            result = self._languages[self._fallback].get_text(
-                key, list_formatter=list_formatter, use_translations=use_translations, **kwargs)
-        except KeyError as exc:
-            raise InvalidTranslationKeyError(
-                f"Translation {key} not found for {locale} nor fallback {self._fallback}", key=key) from exc
-        else:
-            return result
+            try:
+                return self._languages[self._fallback].get_text(
+                    key,
+                    list_formatter=list_formatter,
+                    use_translations=use_translations,
+                    **kwargs,
+                )
+            except KeyError:
+                raise InvalidTranslationKeyError(key, locale, self._fallback)

@@ -17,160 +17,194 @@
 
 
 import contextvars
-from typing import Callable, List, Optional, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Optional
 
+from discord import Locale
 from discord.ext import commands
+from discord.utils import _from_json, maybe_coroutine
+from flatdict import FlatterDict
 
+from .exceptions import NoDefaultI18nInstanceError
 from .i18n import I18n
 from .language import Language
 
+if TYPE_CHECKING:
+    from discord.utils import MaybeAwaitableFunc, P, T
+
+
+def get_locale_or_fallback(fallback: str | int | Locale):
+    """Get the locale from the context or fallback to the given locale.
+
+    Parameters
+    ----------
+    fallback : str | int | Locale
+        The locale to fallback to if no locale is found.
+    """
+    fallback = str(fallback) if isinstance(fallback, Locale) else fallback
+
+    def inner(ctx: commands.Context) -> str:
+        if ctx.interaction:
+            return str(ctx.interaction.locale)
+        if ctx.guild:
+            return str(ctx.guild.preferred_locale)
+        return fallback
+
+    return inner
+
 
 class I18nExtension(I18n):
-    default_i18n_instance = None
+    default_instance: Optional["I18nExtension"] = None
 
     def __init__(
         self,
-        languages: List[Language],
-        fallback: Union[str, int],
+        languages: list[Language],
+        fallback: str | int | Locale,
         bot: Optional[commands.Bot] = None,
-        get_locale_func: Callable = None,
-        default: bool = True
+        get_locale_func: MaybeAwaitableFunc[P, T] = None,
+        default: bool = True,
     ) -> None:
-        """
-        Initialize the extension class.
-
-        .. warning::
-
-            The bot will only be attached to if both `bot` and `get_locale_func`
-            are provided to this function. Otherwise it will not attach
-            automatically.
-
-        Parameters
-        ----------
-        languages : List[Language]
-            List of lanugages to use
-        fallback : Union[str, int]
-            String ID or list index of the fallback locale
-        bot : commands.Bot, optional
-            The bot to attach to, by default None
-        get_locale_func : Callable, optional
-            If provided, init_bot will be run for you
-        default : bool, optional
-            Whether to make this i18n instance the default, by default True
-
-            If there is no default i18n instance, this parameter is ignored and
-            it is always set.
-
-            The default is used by :func:`I18nExtension.contextual_get_text`.
-        """
+        fallback = fallback if isinstance(fallback, (str, int)) else str(fallback)
         super().__init__(languages, fallback)
         self._current_locale = contextvars.ContextVar("_current_locale")
         self._bot = None
 
-        if default or I18nExtension.default_i18n_instance is None:
-            I18nExtension.default_i18n_instance = self
-        
-        if self._bot and get_locale_func:
-            self.init_bot(self._bot, get_locale_func)
+        if default or I18nExtension.default_instance is None:
+            I18nExtension.default_instance = self
 
-    def init_bot(self, bot: commands.Bot, get_locale_func: Callable = None):
-        """
-        Initialize the given bot with the pre-invoke hooks to set the current
-        context. 
+        if bot:
+            self.init_bot(bot, get_locale_func or get_locale_or_fallback(fallback))
 
-        .. note ::
-
-            Due to how discord.py works, this will override any previously
-            set global pre-invoke hook.
-
-            I recommend creating an override to have multiple pre- and post-
-            invoke hooks if required, or setting the current locale yourself
-            with :func:`set_current_locale`.
+    def init_bot(
+        self,
+        bot: commands.Bot,
+        get_locale_func: MaybeAwaitableFunc[P, T] = None,
+    ):
+        """Initialize the bot with this extension.
 
         Parameters
         ----------
         bot : commands.Bot
-            The bot to attach to
-        get_locale_func : Callable, optional
-            The function that provides the locale code for the context, by default None
-
-            It should take one argument, of type :cls:`discord.ext.commands.Context`
+            The bot to initialize with.
+        get_locale_func : MaybeAwaitableFunc[P, T], optional
+            A function to get the locale from the context, by default None.
         """
         self._bot = bot
-        if get_locale_func is None:
-            # Just use the fallback
-            get_locale_func = lambda *_: self._fallback
 
-        async def pre(ctx):
-            self.set_current_locale(get_locale_func(ctx))
+        if get_locale_func is None:
+            get_locale_func = get_locale_or_fallback(self._fallback)
+
+        async def pre(ctx: commands.Context):
+            locale = await maybe_coroutine(get_locale_func, ctx)
+            self.set_current_locale(locale)
 
         self._bot.before_invoke(pre)
 
-    def set_current_locale(self, locale: str) -> str:
-        """
-        Set the current locale (for this context)
-
-        Parameters
-        ----------
-        locale : str
-            The locale
-        """
+    def set_current_locale(self, locale: str) -> None:
         self._current_locale.set(locale)
 
     def get_current_locale(self) -> str:
-        """
-        Get the locale for this context, or the fallback locale if none is set
-
-        Returns
-        -------
-        str
-            The locale
-        """
         return self._current_locale.get(self._fallback)
 
     @classmethod
     def contextual_get_text(
         cls,
         key: str,
+        locale: Optional[str | int | Locale] = None,
         list_formatter: bool = None,
         use_translations: bool = True,
         should_fallback: bool = True,
         **kwargs
     ) -> str:
-        """
-        Wraps :func:`get_text` to use the current context's locale
+        i18n = cls.default_instance
+        if i18n is None:
+            raise NoDefaultI18nInstanceError()
 
-        .. seealso: documentation for :func:`Language.get_text`
+        if locale is None:
+            locale = i18n.get_current_locale()
+        else:
+            locale = str(locale) if isinstance(locale, Locale) else locale
+
+        return i18n.get_text(
+            key,
+            locale,
+            list_formatter=list_formatter,
+            use_translations=use_translations,
+            should_fallback=should_fallback,
+            **kwargs,
+        )
+
+    @staticmethod
+    def name_code_method(filename: str) -> tuple[str, str]:
+        """Get the name and code from the filename, popular i18n file naming convention.
 
         Parameters
         ----------
-        key : str
-            The key to search for
-        list_formatter : bool, optional
-            Function to format lists, by default None
-        use_translations : bool, optional
-            Whether to use translations in formatting, by default True
-        should_fallback : bool, optional
-            Should fallback to default locale, by default True
+        filename : str
+            The filename to parse.
 
         Returns
         -------
-        str
-            Translated and formatted string
-
-        Raises
-        ------
-        NameError
-            If there is no current i18n instance set
+        tuple[str, str]
+            The name and code.
         """
-        i18n = cls.default_i18n_instance
-        if i18n is None:
-            raise NameError("No default i18n instance has been initialized!")
+        a, *_, b = filename.removesuffix(".json").split("_")
+        return a, b
 
-        return i18n.get_text(
-            key, i18n.get_current_locale(), list_formatter=list_formatter,
-            use_translations=use_translations, should_fallback=should_fallback,
-            **kwargs)
+    @classmethod
+    def load(
+        cls,
+        bot: commands.Bot,
+        path: str = ".",
+        fallback: str | int | Locale = Locale.american_english,
+        pattern: str = "**/*.json",
+        from_json: Callable[[str], dict] = _from_json,
+        method: Optional[Callable[[str], tuple[str, str]]] = None,
+        delimiter: str = ".",
+        dict_cls: type[dict] = dict,
+    ):
+        """Load the languages from a glob pattern.
+
+        Parameters
+        ----------
+        bot : commands.Bot
+            The bot to initialize with.
+        path : str, optional
+            The path to the directory. By default current directory.
+        fallback : str | int | Locale, optional
+            The locale to fallback to if no locale is found. By default american_english.
+        pattern : str, optional
+            The glob pattern to search for, by default "**/*.json".
+        method : Optional[Callable[[str], dict]], optional
+            The method to use to parse the file, by default discord.utils._from_json.
+        """
+
+        route = Path(path)
+
+        return cls(
+            languages=[
+                Language(
+                    name=name,
+                    code=code,
+                    translations=item,
+                    delimiter=delimiter,
+                    dict_class=dict_cls,
+                )
+                for name, code, item in map(
+                    lambda x: (
+                        *method(x),
+                        FlatterDict(
+                            from_json(open(x, "r", encoding="utf-8").read()),
+                            delimiter=".",
+                        ),
+                    ),
+                    route.glob(pattern),
+                )
+            ],
+            fallback=str(fallback) if isinstance(fallback, Locale) else fallback,
+            bot=bot,
+        )
 
 
+load = I18nExtension.load
 _ = I18nExtension.contextual_get_text
