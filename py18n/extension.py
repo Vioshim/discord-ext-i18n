@@ -177,6 +177,7 @@ class I18nExtension(I18n):
         """
 
         route = Path(path)
+        method = method or cls.name_code_method
 
         return cls(
             languages=[
