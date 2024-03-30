@@ -111,7 +111,7 @@ class I18nExtension(I18n):
         list_formatter: bool = None,
         use_translations: bool = True,
         should_fallback: bool = True,
-        raise_error: bool = False,
+        raise_on_empty: bool = False,
         **kwargs
     ) -> str:
         i18n = cls.default_instance
@@ -129,7 +129,7 @@ class I18nExtension(I18n):
             list_formatter=list_formatter,
             use_translations=use_translations,
             should_fallback=should_fallback,
-            raise_error=raise_error,
+            raise_on_empty=raise_on_empty,
             **kwargs,
         )
 
