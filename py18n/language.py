@@ -146,6 +146,7 @@ class Language:
         list_formatter: Optional[Callable[[list[str]], str]] = None,
         use_translations: bool = True,
         safedict: type[dict] = SafeDict,
+        raise_on_empty: bool = True,
         **kwargs,
     ) -> str:
         """
@@ -175,6 +176,8 @@ class Language:
                 "You lost the game"
         safedict : type[dict], optional
             Class to use as a "Safe dict", by default :cls:`SafeDict`
+        raise_on_empty : bool, optional
+            Raise errors if the key is not found, by default True
         **kwargs :  dict[str, Any], optional
             Parameters to pass to translation
 
@@ -188,7 +191,7 @@ class Language:
         TranslationKeyEmptyError
             The translation was not found (raised through `_get_translation_from_key`)
         """
-        base_string = self._get_translation_from_key(key)
+        base_string = self._get_translation_from_key(key, raise_on_empty=raise_on_empty)
         formatted_args = {
             k: list_formatter(v) if list_formatter and isinstance(v, list) else v
             for k, v in kwargs.items()

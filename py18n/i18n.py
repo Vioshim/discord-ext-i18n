@@ -16,6 +16,8 @@
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
 
+from logging import getLogger
+
 from discord import Locale
 
 from .exceptions import (
@@ -24,6 +26,8 @@ from .exceptions import (
     InvalidTranslationKeyError,
 )
 from .language import Language
+
+log = getLogger(__name__)
 
 
 class I18n:
@@ -49,6 +53,7 @@ class I18n:
         list_formatter: bool = None,
         use_translations: bool = True,
         should_fallback: bool = True,
+        raise_on_empty: bool = True,
         **kwargs,
     ) -> str:
         """
@@ -68,6 +73,8 @@ class I18n:
             Whether to use translations in formatting, by default True
         should_fallback : bool, optional
             Should fallback to default locale, by default True
+        raise_on_empty : bool, optional
+            Raise errors if the key is not found, by default True
 
         Returns
         -------
@@ -95,6 +102,7 @@ class I18n:
                 key,
                 list_formatter=list_formatter,
                 use_translations=use_translations,
+                raise_on_empty=raise_on_empty,
                 **kwargs,
             )
             formatted_args = {
@@ -108,15 +116,28 @@ class I18n:
             )
             return base_string.format(**mapping)
         except KeyError:
-            if not should_fallback or locale == self._fallback:
-                raise InvalidTranslationKeyError(key, locale, self._fallback)
+            pass
 
-        try:
-            return self._languages[self._fallback].get_text(
-                key,
-                list_formatter=list_formatter,
-                use_translations=use_translations,
-                **kwargs,
-            )
-        except KeyError:
+        if should_fallback and locale != self._fallback:
+            try:
+                return self._languages[self._fallback].get_text(
+                    key,
+                    list_formatter=list_formatter,
+                    use_translations=use_translations,
+                    raise_on_empty=raise_on_empty,
+                    **kwargs,
+                )
+            except KeyError:
+                pass
+
+        if raise_on_empty:
             raise InvalidTranslationKeyError(key, locale, self._fallback)
+
+        log.warn(
+            "Translation key %r not found in locale %r nor in fallback %r",
+            key,
+            locale,
+            self._fallback,
+        )
+
+        return ""

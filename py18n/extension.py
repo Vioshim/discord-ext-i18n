@@ -111,6 +111,7 @@ class I18nExtension(I18n):
         list_formatter: bool = None,
         use_translations: bool = True,
         should_fallback: bool = True,
+        raise_error: bool = False,
         **kwargs
     ) -> str:
         i18n = cls.default_instance
@@ -128,6 +129,7 @@ class I18nExtension(I18n):
             list_formatter=list_formatter,
             use_translations=use_translations,
             should_fallback=should_fallback,
+            raise_error=raise_error,
             **kwargs,
         )
 
@@ -181,11 +183,7 @@ class I18nExtension(I18n):
 
         return cls(
             languages=[
-                Language(
-                    name=name,
-                    code=code,
-                    translations=item
-                )
+                Language(name=name, code=code, translations=item)
                 for name, code, item in map(
                     lambda x: (
                         *method(x.name),
@@ -214,6 +212,7 @@ class I18nExtension(I18n):
             bot._before_invoke = None
         i18n._bot = None
         i18n._current_locale = contextvars.ContextVar("_current_locale")
+
 
 load = I18nExtension.load
 unload = I18nExtension.unload
