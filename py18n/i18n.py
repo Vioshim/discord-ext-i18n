@@ -98,27 +98,13 @@ class I18n:
             language = self._languages[locale]
 
         try:
-            base_string = language.get_text(
+            return language.get_text(
                 key,
                 list_formatter=list_formatter,
                 use_translations=use_translations,
                 raise_on_empty=raise_on_empty,
                 **kwargs,
             )
-            if isinstance(base_string, str):
-                formatted_args = {
-                    k: list_formatter(v)
-                    if list_formatter and isinstance(v, list)
-                    else v
-                    for k, v in kwargs.items()
-                }
-                mapping = (
-                    {**language.translations, **formatted_args}
-                    if use_translations
-                    else formatted_args
-                )
-                return base_string.format(**mapping)
-            return base_string
         except KeyError:
             pass
 
