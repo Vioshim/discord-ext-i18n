@@ -39,7 +39,15 @@ class I18nTesting(unittest.TestCase):
         self.assertEqual(self.i18n.get_text("english", "fr"), "English")
         with self.assertRaises(InvalidTranslationKeyError):
             self.i18n.get_text("english", "fr", should_fallback=False)
-        self.assertEqual(self.i18n.get_text("english", "fr", should_fallback=False, raise_on_empty=False), "")
+        self.assertEqual(
+            self.i18n.get_text(
+                "english",
+                "fr",
+                should_fallback=False,
+                raise_on_empty=False,
+            ),
+            "",
+        )
 
     def test_locale_error(self):
         with self.assertRaises(InvalidLocaleError):

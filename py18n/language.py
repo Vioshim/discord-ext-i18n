@@ -79,7 +79,7 @@ class Language:
         "Nested key"
         """
         result = self.translations.get(key, "")
-        if raise_on_empty and result == "":
+        if raise_on_empty and isinstance(result, str) and not result:
             raise TranslationKeyEmptyError(key, self.code)
         return result
 
@@ -192,13 +192,16 @@ class Language:
             The translation was not found (raised through `_get_translation_from_key`)
         """
         base_string = self._get_translation_from_key(key, raise_on_empty=raise_on_empty)
-        formatted_args = {
-            k: list_formatter(v) if list_formatter and isinstance(v, list) else v
-            for k, v in kwargs.items()
-        }
-        mapping = (
-            {**self.translations, **formatted_args}
-            if use_translations
-            else formatted_args
-        )
-        return base_string.format_map(safedict(**mapping))
+
+        if isinstance(base_string, str):
+            formatted_args = {
+                k: list_formatter(v) if list_formatter and isinstance(v, list) else v
+                for k, v in kwargs.items()
+            }
+            mapping = (
+                {**self.translations, **formatted_args}
+                if use_translations
+                else formatted_args
+            )
+            return base_string.format_map(safedict(**mapping))
+        return base_string

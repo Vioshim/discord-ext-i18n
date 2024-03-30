@@ -105,16 +105,20 @@ class I18n:
                 raise_on_empty=raise_on_empty,
                 **kwargs,
             )
-            formatted_args = {
-                k: list_formatter(v) if list_formatter and isinstance(v, list) else v
-                for k, v in kwargs.items()
-            }
-            mapping = (
-                {**language.translations, **formatted_args}
-                if use_translations
-                else formatted_args
-            )
-            return base_string.format(**mapping)
+            if isinstance(base_string, str):
+                formatted_args = {
+                    k: list_formatter(v)
+                    if list_formatter and isinstance(v, list)
+                    else v
+                    for k, v in kwargs.items()
+                }
+                mapping = (
+                    {**language.translations, **formatted_args}
+                    if use_translations
+                    else formatted_args
+                )
+                return base_string.format(**mapping)
+            return base_string
         except KeyError:
             pass
 

@@ -17,11 +17,13 @@
 
 
 import contextvars
+from pathlib import Path
 from typing import Callable, Optional
 
 from discord import Locale
 from discord.ext import commands
-from discord.utils import maybe_coroutine
+from discord.utils import _from_json, maybe_coroutine
+from flatdict import FlatterDict
 
 from .exceptions import NoDefaultI18nInstanceError
 from .i18n import I18n
@@ -131,5 +133,95 @@ class I18nExtension(I18n):
             **kwargs,
         )
 
+    @staticmethod
+    def name_code_method(filename: str) -> tuple[str, str]:
+        """Get the name and code from the filename, popular i18n file naming convention.
 
+        Parameters
+        ----------
+        filename : str
+            The filename to parse.
+
+        Returns
+        -------
+        tuple[str, str]
+            The name and code.
+        """
+        a, *_, b = filename.removesuffix(".json").split("_")
+        return a, b
+
+    @classmethod
+    def load(
+        cls,
+        bot: commands.Bot,
+        path: str = ".",
+        fallback: str | int | Locale = Locale.american_english,
+        pattern: str = "**/*.json",
+        from_json: Callable[[str], dict] = _from_json,
+        method: Optional[Callable[[str], tuple[str, str]]] = None,
+        delimiter: str = ".",
+        dict_cls: type[dict] = dict,
+        get_locale_func: Callable[[commands.Context], str] = None,
+    ):
+        """Load the languages from a glob pattern.
+
+        Parameters
+        ----------
+        bot : commands.Bot
+            The bot to initialize with.
+        path : str, optional
+            The path to the directory. By default current directory.
+        fallback : str | int | Locale, optional
+            The locale to fallback to if no locale is found. By default american_english.
+        pattern : str, optional
+            The glob pattern to search for, by default "**/*.json".
+        method : Optional[Callable[[str], dict]], optional
+            The method to use to parse the file, by default discord.utils._from_json.
+        delimiter : str, optional
+            The delimiter to use for the translations, by default ".".
+        dict_cls : type[dict], optional
+            The dictionary class to use for the translations, by default dict.
+        get_locale_func : Callable[[commands.Context], str], optional
+            A function to get the locale from the context, by default None.
+        """
+
+        route = Path(path)
+        method = method or cls.name_code_method
+
+        return cls(
+            languages=[
+                Language(name=name, code=code, translations=item)
+                for name, code, item in map(
+                    lambda x: (
+                        *method(x.name),
+                        FlatterDict(
+                            from_json(open(x, "r", encoding="utf-8").read()),
+                            delimiter=delimiter,
+                            dict_class=dict_cls,
+                        ),
+                    ),
+                    route.glob(pattern),
+                )
+            ],
+            fallback=str(fallback) if isinstance(fallback, Locale) else fallback,
+            bot=bot,
+            get_locale_func=get_locale_func,
+        )
+
+    @classmethod
+    def unload(cls, bot: commands.Bot, remove_before_invoke: bool = False):
+        """Unload the languages from the class"""
+
+        i18n = cls.default_instance
+        if i18n is None:
+            raise NoDefaultI18nInstanceError()
+
+        if remove_before_invoke:
+            bot._before_invoke = None
+        i18n._bot = None
+        i18n._current_locale = contextvars.ContextVar("_current_locale")
+
+
+load = I18nExtension.load
+unload = I18nExtension.unload
 _ = I18nExtension.contextual_get_text
