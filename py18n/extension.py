@@ -17,6 +17,7 @@
 
 
 import contextvars
+import re
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -28,6 +29,8 @@ from flatdict import FlatterDict
 from .exceptions import NoDefaultI18nInstanceError
 from .i18n import I18n
 from .language import Language
+
+PARSER = re.compile(r"\{\{([^{}]+)\}\}", re.MULTILINE)
 
 
 def get_locale_or_fallback(fallback: str | int | Locale):
@@ -195,7 +198,9 @@ class I18nExtension(I18n):
                     lambda x: (
                         *method(x.name),
                         FlatterDict(
-                            from_json(open(x, "r", encoding="utf-8").read()),
+                            from_json(
+                                PARSER.sub(r"{\1}", x.read_text(encoding="utf-8"))
+                            ),
                             delimiter=delimiter,
                             dict_class=dict_cls,
                         ),
