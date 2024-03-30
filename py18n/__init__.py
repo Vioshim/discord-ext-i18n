@@ -16,7 +16,7 @@
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
 from .exceptions import *
-from .extension import I18nExtension, load
+from .extension import I18nExtension
 from .i18n import I18n
 from .language import Language
 
