@@ -16,10 +16,8 @@
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
 
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from typing import Callable, Optional
-
-from flatdict import FlatterDict
 
 from .exceptions import TranslationKeyEmptyError
 
@@ -33,17 +31,7 @@ class SafeDict(dict):
 class Language:
     name: str
     code: str
-    translations: FlatterDict[str, str] = field(default=None, hash=False)
-    delimiter: InitVar[str] = "."
-    dict_class: InitVar[type[dict]] = dict
-
-    def __post_init__(self, delimiter: str = ".", dict_class: type[dict] = dict):
-        if self.translations is None:
-            self.translations = FlatterDict(
-                self.translations,
-                delimiter=delimiter,
-                dict_class=dict_class,
-            )
+    translations: dict[str, str] = field(default_factory=dict, hash=False)
 
     def _get_translation_from_key(self, key: str, raise_on_empty: bool = True) -> str:
         """

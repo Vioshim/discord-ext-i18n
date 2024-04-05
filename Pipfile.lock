@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "40d0e439d8e3fb9cba714a4261a6f543a280a1f6ab8cb0566d58a815e0a229aa"
+            "sha256": "44ef500e997a1fe38542ab105f532784b9b634ac1b8f948c58b89aa67fb6a75d"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -121,13 +121,6 @@
             ],
             "markers": "python_full_version >= '3.8.0'",
             "version": "==2.3.2"
-        },
-        "flatdict": {
-            "hashes": [
-                "sha256:cd32f08fd31ed21eb09ebc76f06b6bd12046a24f77beb1fd0281917e47f26742"
-            ],
-            "index": "pypi",
-            "version": "==4.0.1"
         },
         "frozenlist": {
             "hashes": [

@@ -24,7 +24,6 @@ from typing import Callable, Optional
 from discord import Locale
 from discord.ext import commands
 from discord.utils import _from_json, maybe_coroutine
-from flatdict import FlatterDict
 
 from .exceptions import NoDefaultI18nInstanceError
 from .i18n import I18n
@@ -51,6 +50,29 @@ def get_locale_or_fallback(fallback: str | int | Locale):
         return fallback
 
     return inner
+
+
+def flatten_dict(d: dict, sep: str = ".") -> dict:
+    def _flatten(current_dict: dict, key_prefix: str = ""):
+        items = {}
+        for k, v in current_dict.items():
+            new_key = f"{key_prefix}{sep}{k}" if key_prefix else k
+            
+            if isinstance(v, dict):
+                items.update(_flatten(v, new_key))
+            elif isinstance(v, list):
+                for i, item in enumerate(v):
+                    sub_key = f"{new_key}{sep}{i}"
+                    if isinstance(item, dict):
+                        items.update(_flatten(item, sub_key))
+                    else:
+                        items[sub_key] = item
+            else:
+                items[new_key] = v
+                
+        return items
+
+    return _flatten(d)
 
 
 class I18nExtension(I18n):
@@ -115,7 +137,7 @@ class I18nExtension(I18n):
         use_translations: bool = True,
         should_fallback: bool = True,
         raise_on_empty: bool = False,
-        **kwargs
+        **kwargs,
     ) -> str:
         i18n = cls.default_instance
         if i18n is None:
@@ -193,17 +215,11 @@ class I18nExtension(I18n):
 
         return cls(
             languages=[
-                Language(name=name, code=code, translations=item)
+                Language(name=name, code=code, translations=flatten_dict(item))
                 for name, code, item in map(
                     lambda x: (
                         *method(x.name),
-                        FlatterDict(
-                            from_json(
-                                PARSER.sub(r"{\1}", x.read_text(encoding="utf-8"))
-                            ),
-                            delimiter=delimiter,
-                            dict_class=dict_cls,
-                        ),
+                        from_json(PARSER.sub(r"{\1}", x.read_text(encoding="utf-8"))),
                     ),
                     route.glob(pattern),
                 )
