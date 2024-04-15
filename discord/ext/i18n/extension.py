@@ -1,63 +1,51 @@
-# Copyright (C) 2021 Avery
+# Copyright (C) 2024 Vioshim (original author: Avery)
 #
-# This file is part of py18n.
+# This file is part of discord-ext-i18n.
 #
-# py18n is free software: you can redistribute it and/or modify
+# discord-ext-i18n is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# py18n is distributed in the hope that it will be useful,
+# discord-ext-i18n is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with py18n.  If not, see <http://www.gnu.org/licenses/>.
+# along with discord-ext-i18n.  If not, see <http://www.gnu.org/licenses/>.
 
 
 from __future__ import annotations
 
 import contextvars
+from functools import partial
 import re
 from pathlib import Path
-from typing import Callable, Optional, Type
+from typing import Callable, Optional, Type, TypeVar
 
 from discord import Locale
 from discord.ext import commands
 from discord.utils import _from_json, maybe_coroutine
-from functools import partial
 
-from .exceptions import NoDefaultI18nInstanceError
-from .i18n import I18n
-from .language import Language
+from exceptions import NoDefaultI18nInstanceError
+from i18n import I18n
+from yaml import safe_load as yaml_load
+from language import Language
 
 PARSER = re.compile(r"\{\{([^{}]+)\}\}", re.MULTILINE)
 
 __all__ = (
     "I18nExtension",
-    "get_locale_or_fallback",
+    "load_files",
     "flatten_dict",
+    "unload",
+    "_",
 )
 
+L = TypeVar("L", Locale, str)
 
-def get_locale_or_fallback(fallback: Locale | str):
-    """Get the locale from the context or fallback to the given locale.
 
-    Parameters
-    ----------
-    fallback : Locale | str
-        The locale to fallback to if no locale is found.
-    """
-
-    def inner(ctx: commands.Context):
-        if ctx.interaction:
-            return str(ctx.interaction.locale)
-        if ctx.guild:
-            return str(ctx.guild.preferred_locale)
-        return fallback
-
-    return inner
 
 
 def flatten_dict(d: dict, delimiter: str = ".", dict_cls: Type[dict] = dict):
@@ -83,32 +71,51 @@ def flatten_dict(d: dict, delimiter: str = ".", dict_cls: Type[dict] = dict):
     return dict_cls(_flatten(d))
 
 
-class I18nExtension(I18n):
+
+class I18nExtension(I18n[L]):
     default_instance: Optional[I18nExtension] = None
 
     def __init__(
         self,
-        languages: list[Language],
-        fallback: Locale | str = Locale.american_english,
+        languages: list[Language[L]],
+        fallback: L = Locale.american_english,
         bot: Optional[commands.Bot] = None,
-        get_locale_func: Optional[Callable[[commands.Context], Locale | str]] = None,
+        get_locale_func: Optional[Callable[[commands.Context], L]] = None,
         default: bool = True,
     ) -> None:
         super(I18nExtension, self).__init__(languages, fallback)
         self._current_locale = contextvars.ContextVar("_current_locale")
         self._bot = None
 
-        if default or I18nExtension.default_instance is None:
-            I18nExtension.default_instance = self
+        if default or I18nExtension[L].default_instance is None:
+            I18nExtension[L].default_instance = self
 
         if bot:
-            locale_func = get_locale_func or get_locale_or_fallback(self._fallback)
-            self.init_bot(bot, locale_func)
+            self.init_bot(bot, get_locale_func)
 
+    @classmethod
+    def get_locale_or_fallback(cls, fallback: L):
+        """Get the locale from the context or fallback to the given locale.
+
+        Parameters
+        ----------
+        fallback : Locale | str
+            The locale to fallback to if no locale is found.
+        """
+
+        def inner(ctx: commands.Context):
+            if ctx.interaction:
+                return ctx.interaction.locale
+            if ctx.guild:
+                return ctx.guild.preferred_locale
+            return fallback
+
+        return inner
+    
     def init_bot(
         self,
         bot: commands.Bot,
-        get_locale_func: Optional[Callable[[commands.Context], Locale | str]] = None,
+        get_locale_func: Optional[Callable[[commands.Context], L]] = None,
     ):
         """Initialize the bot with this extension.
 
@@ -122,10 +129,12 @@ class I18nExtension(I18n):
         self._bot = bot
 
         if get_locale_func is None:
-            get_locale_func = get_locale_or_fallback(self._fallback)
+            method = self.get_locale_or_fallback(self._fallback)
+        else:
+            method = get_locale_func
 
         async def pre(ctx: commands.Context):
-            locale = await maybe_coroutine(get_locale_func, ctx)
+            locale = await maybe_coroutine(method, ctx)
             self.set_current_locale(locale)
 
         self._bot.before_invoke(pre)
@@ -140,7 +149,7 @@ class I18nExtension(I18n):
     def contextual_get_text(
         cls,
         key: str,
-        locale: Optional[Locale | str] = None,
+        locale: Optional[L] = None,
         list_formatter: Optional[Callable[[list[str]], str]] = None,
         use_translations: bool = True,
         should_fallback: bool = True,
@@ -153,11 +162,13 @@ class I18nExtension(I18n):
             raise NoDefaultI18nInstanceError()
 
         if locale is None:
-            locale = i18n.get_current_locale()
+            current_locale = i18n.get_current_locale()
+        else:
+            current_locale = locale
 
         return i18n.get_text(
             key=key,
-            locale=locale,
+            locale=current_locale,
             list_formatter=list_formatter,
             use_translations=use_translations,
             should_fallback=should_fallback,
@@ -166,7 +177,10 @@ class I18nExtension(I18n):
         )
 
     @staticmethod
-    def name_code_method(filename: str) -> tuple[str, str]:
+    def parser(
+        route: Path,
+        method: Callable[[str], dict[str, str]] = _from_json,
+    ) -> tuple[str, Locale | str, dict[str, str]]:
         """Get the name and code from the filename, popular i18n file naming convention.
 
         Parameters
@@ -176,25 +190,43 @@ class I18nExtension(I18n):
 
         Returns
         -------
-        tuple[str, str]
+        tuple[str, Locale | str, dict]
             The name and code.
         """
-        a, *_, b = filename.removesuffix(".json").split("_")
-        return a, b
+        name = route.stem
+        
+        if "_" in name:
+            lang_name, *_, lang_code = name.split("_")
+        else:
+            lang_name, lang_code = name, ""
 
+        info = method(route.read_text(encoding="utf-8"))
+
+        try:
+            item = Locale(lang_code or lang_name)
+            return lang_name or item.name, item, info
+        except ValueError:
+            pass
+
+        try:
+            item = Locale[(lang_code or lang_name).lower()]
+            return lang_name or item.name, item, info
+        except ValueError:
+            pass
+
+        return lang_name, lang_code, info
 
     @classmethod
-    def load(
+    def load_files(
         cls,
         bot: Optional[commands.Bot] = None,
         path: str = ".",
-        fallback: Locale | str = Locale.american_english,
+        fallback: Optional[L] = None,
         pattern: str = "**/*.json",
-        from_json: Callable[[str], dict] = _from_json,
-        method: Optional[Callable[[str], tuple[str, str]]] = None,
+        method: Callable[[str], dict[str, str]] = _from_json,
         delimiter: str = ".",
         dict_cls: type[dict] = dict,
-        get_locale_func: Optional[Callable[[commands.Context], str]] = None,
+        get_locale_func: Optional[Callable[[commands.Context], L]] = None,
     ):
         """Load the languages from a glob pattern.
 
@@ -217,36 +249,56 @@ class I18nExtension(I18n):
         get_locale_func : Callable[[commands.Context], str], optional
             A function to get the locale from the context, by default None.
         """
-
         route = Path(path)
-        method = method or cls.name_code_method
-
+        name_code_method = partial(cls.parser, method=method)
         return cls(
             languages=[
                 Language(
                     name=name,
-                    code=code,
+                    code=code,  # type: ignore
                     translations=flatten_dict(
-                        item,
+                        info,
                         delimiter=delimiter,
                         dict_cls=dict_cls,
                     ),
                 )
-                for name, code, item in map(
-                    lambda x: (
-                        *method(x.name),
-                        from_json(PARSER.sub(r"{\1}", x.read_text(encoding="utf-8"))),
-                    ),
-                    route.glob(pattern),
-                )
+                for name, code, info in map(name_code_method, route.glob(pattern))
             ],
-            fallback=fallback,
+            fallback=fallback or Locale.american_english,
             bot=bot,
             get_locale_func=get_locale_func,
         )
 
     @classmethod
-    def unload(cls, bot: Optional[commands.Bot] = None, remove_before_invoke: bool = False):
+    def yaml_load(
+        cls,
+        bot: Optional[commands.Bot] = None,
+        path: str = ".",
+        fallback: Optional[L] = None,
+        pattern: str = "**/*.yaml",
+        method: Callable[[str], dict[str, str]] = yaml_load,
+        delimiter: str = ".",
+        dict_cls: type[dict] = dict,
+        get_locale_func: Optional[Callable[[commands.Context], str]] = None,
+    ):
+        """Shortcut to load yaml files."""
+        cls.load_files(
+            bot=bot,
+            path=path,
+            fallback=fallback,
+            pattern=pattern,
+            method=method,
+            delimiter=delimiter,
+            dict_cls=dict_cls,
+            get_locale_func=get_locale_func,
+        )
+
+    @classmethod
+    def unload(
+        cls,
+        bot: Optional[commands.Bot] = None,
+        remove_before_invoke: bool = False,
+    ):
         """Unload the languages from the class"""
 
         i18n = cls.default_instance
@@ -261,6 +313,6 @@ class I18nExtension(I18n):
         i18n._current_locale = contextvars.ContextVar("_current_locale")
 
 
-load = I18nExtension.load
+load_files = I18nExtension.load_files
 unload = I18nExtension.unload
 _ = I18nExtension.contextual_get_text

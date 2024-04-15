@@ -1,27 +1,27 @@
-# Copyright (C) 2021 Avery
+# Copyright (C) 2024 Vioshim (original author: Avery)
 #
-# This file is part of py18n.
+# This file is part of discord-ext-i18n.
 #
-# py18n is free software: you can redistribute it and/or modify
+# discord-ext-i18n is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# py18n is distributed in the hope that it will be useful,
+# discord-ext-i18n is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with py18n.  If not, see <http://www.gnu.org/licenses/>.
+# along with discord-ext-i18n.  If not, see <http://www.gnu.org/licenses/>.
 
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Callable, Optional, Generic, TypeVar
 
 from discord import Locale
 
-from .exceptions import TranslationKeyEmptyError
+from exceptions import TranslationKeyEmptyError
 
 __all__ = ("Language", "SafeDict")
 
@@ -29,13 +29,19 @@ __all__ = ("Language", "SafeDict")
 class SafeDict(dict):
     def __missing__(self, key: str):
         return "{%s}" % key
+    
+L = TypeVar("L", Locale, str)
 
 
 @dataclass(slots=True, unsafe_hash=True)
-class Language:
-    name: str
-    code: Locale | str
+class Language(Generic[L]):
+    code: L
+    name: str = ""
     translations: dict[str, str] = field(default_factory=dict, hash=False)
+
+    def __post_init__(self):
+        if not self.name:
+            self.name = self.code.name if isinstance(self.code, Locale) else self.code
 
     def _get_translation_from_key(self, key: str, raise_on_empty: bool = True) -> str:
         """

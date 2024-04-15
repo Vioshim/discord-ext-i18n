@@ -1,53 +1,61 @@
-# Copyright (C) 2021 Avery
+# Copyright (C) 2024 Vioshim (original author: Avery)
 #
-# This file is part of py18n.
+# This file is part of discord-ext-i18n.
 #
-# py18n is free software: you can redistribute it and/or modify
+# discord-ext-i18n is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# py18n is distributed in the hope that it will be useful,
+# discord-ext-i18n is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with py18n.  If not, see <http://www.gnu.org/licenses/>.
+# along with discord-ext-i18n.  If not, see <http://www.gnu.org/licenses/>.
 
 
 from logging import getLogger
-from typing import Callable, Optional
+from typing import Callable, Optional, TypeVar, Generic, Iterable
 
 from discord import Locale
 
-from .exceptions import (
+from exceptions import (
     InvalidFallbackError,
     InvalidLocaleError,
     InvalidTranslationKeyError,
 )
-from .language import Language
-
-log = getLogger(__name__)
+from language import Language
 
 __all__ = ("I18n", "Language")
 
 
-class I18n:
+log = getLogger(__name__)
+
+L = TypeVar("L", Locale, str)
+
+
+class I18n(Generic[L]):
+    
     __slots__ = ("_languages", "_fallback")
 
-    def __init__(self, languages: list[Language], fallback: Locale | str = Locale.american_english):
+    def __init__(
+        self,
+        languages: Iterable[Language[L]],
+        fallback: L,
+    ):
         self._languages = {language.code: language for language in languages}
 
         if not (isinstance(fallback, (str, Locale)) and fallback in self._languages):
             raise InvalidFallbackError(fallback)
 
-        self._fallback = fallback       
+        self._fallback: L = fallback
 
     def get_text(
         self,
         key: str,
-        locale: Optional[Locale | str] = None,
+        locale: Optional[L] = None,
         list_formatter: Optional[Callable[[list[str]], str]] = None,
         use_translations: bool = True,
         should_fallback: bool = True,

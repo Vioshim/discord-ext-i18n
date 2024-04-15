@@ -1,24 +1,25 @@
-# Copyright (C) 2021 Avery
+# Copyright (C) 2024 Vioshim (original author: Avery)
 #
-# This file is part of py18n.
+# This file is part of discord-ext-i18n.
 #
-# py18n is free software: you can redistribute it and/or modify
+# discord-ext-i18n is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# py18n is distributed in the hope that it will be useful,
+# discord-ext-i18n is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with py18n.  If not, see <http://www.gnu.org/licenses/>.
+# along with discord-ext-i18n.  If not, see <http://www.gnu.org/licenses/>.
+
 
 from discord import Locale
 
 __all__ = (
-    "Py18nError",
+    "I18nError",
     "InvalidLocaleError",
     "InvalidTranslationKeyError",
     "InvalidFallbackError",
@@ -27,18 +28,18 @@ __all__ = (
 )
 
 
-class Py18nError(KeyError):
+class I18nError(KeyError):
     ...
 
 
-class InvalidLocaleError(Py18nError):
-    def __init__(self, locale: Locale | str) -> None:
+class InvalidLocaleError(I18nError):
+    def __init__(self, locale: Locale | str):
         super().__init__(f"Given locale {locale!r} does not exist!")
         self.locale = locale
 
 
-class InvalidTranslationKeyError(Py18nError):
-    def __init__(self, key: str, locale: Locale | str, fallback: Locale | str) -> None:
+class InvalidTranslationKeyError(I18nError):
+    def __init__(self, key: str, locale: Locale | str, fallback: Locale | str):
         super().__init__(
             f"Translation {key!r} not found for locale {locale!r}, nor fallback {fallback!r}"
         )
@@ -47,21 +48,21 @@ class InvalidTranslationKeyError(Py18nError):
         self.fallback = fallback
 
 
-class InvalidFallbackError(Py18nError):
-    def __init__(self, fallback: Locale | str | int) -> None:
+class InvalidFallbackError(I18nError):
+    def __init__(self, fallback: Locale | str | int):
         super().__init__(
             f"Invalid fallback: {fallback!r}. Fallback must be a valid locale code."
         )
         self.fallback = fallback
 
 
-class NoDefaultI18nInstanceError(Py18nError):
-    def __init__(self) -> None:
+class NoDefaultI18nInstanceError(I18nError):
+    def __init__(self):
         super().__init__("No default i18n instance has been initialized!")
 
 
-class TranslationKeyEmptyError(Py18nError):
-    def __init__(self, key: str, locale: Locale | str) -> None:
+class TranslationKeyEmptyError(I18nError):
+    def __init__(self, key: str, locale: Locale | str):
         super().__init__(
             f"Translation for key {key!r} in language {locale!r} is empty."
         )
