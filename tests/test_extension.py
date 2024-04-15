@@ -21,6 +21,7 @@ import unittest
 from discord import Intents
 from discord.ext import commands
 
+from py18n.exceptions import NoDefaultI18nInstanceError
 from py18n.extension import I18nExtension, _
 from py18n.language import Language
 
@@ -57,13 +58,12 @@ class I18nExtensionTesting(unittest.TestCase):
         self.assertEqual(_("hello"), "Bonjour")
 
     def test_no_i18n_set(self):
-        # Manually get rid of it
         I18nExtension.default_instance = None
-        with self.assertRaises(NameError):
+        with self.assertRaises(NoDefaultI18nInstanceError):
             _("hello")
 
     def test_bot(self):
-        def get_locale(_):
+        def get_locale(ctx: commands.Context):
             return "en"
 
         self.i18n = I18nExtension(
@@ -92,7 +92,7 @@ class I18nExtensionTesting(unittest.TestCase):
             fallback="en",
         )
 
-        self.assertEqual(self.i18n.contextual_get_text("hello"), "Hello")
+        self.assertEqual(_("hello"), "Hello")
 
 
 if __name__ == "__main__":

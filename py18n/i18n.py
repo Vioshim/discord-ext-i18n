@@ -17,6 +17,7 @@
 
 
 from logging import getLogger
+from typing import Callable, Optional
 
 from discord import Locale
 
@@ -29,28 +30,25 @@ from .language import Language
 
 log = getLogger(__name__)
 
+__all__ = ("I18n", "Language")
+
 
 class I18n:
     __slots__ = ("_languages", "_fallback")
 
-    def __init__(self, languages: list[Language], fallback: str | int | Locale) -> None:
+    def __init__(self, languages: list[Language], fallback: Locale | str = Locale.american_english):
         self._languages = {language.code: language for language in languages}
 
-        if isinstance(fallback, (str, Locale)):
-            self._fallback = str(fallback)
-        elif isinstance(fallback, int):
-            self._fallback = languages[fallback].code
-        else:
+        if not (isinstance(fallback, (str, Locale)) and fallback in self._languages):
             raise InvalidFallbackError(fallback)
 
-        if self._fallback not in self._languages:
-            raise InvalidLocaleError(self._fallback)
+        self._fallback = fallback       
 
     def get_text(
         self,
         key: str,
-        locale: int | str | Locale,
-        list_formatter: bool = None,
+        locale: Optional[Locale | str] = None,
+        list_formatter: Optional[Callable[[list[str]], str]] = None,
         use_translations: bool = True,
         should_fallback: bool = True,
         raise_on_empty: bool = True,
@@ -65,9 +63,9 @@ class I18n:
         ----------
         key : str
             The key to search for
-        locale : int | str | Locale
+        locale : Locale | str
             The locale to search in
-        list_formatter : bool, optional
+        list_formatter : Optional[Callable[[list[str]], str]], optional
             Function to format lists, by default None
         use_translations : bool, optional
             Whether to use translations in formatting, by default True
@@ -89,6 +87,7 @@ class I18n:
             If the key could not be found in the locale, nor in the fallback
             if `should_fallback` is `True`
         """
+        locale = locale or self._fallback
         language = self._languages.get(locale)
 
         if language is None:

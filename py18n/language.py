@@ -19,18 +19,22 @@
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+from discord import Locale
+
 from .exceptions import TranslationKeyEmptyError
+
+__all__ = ("Language", "SafeDict")
 
 
 class SafeDict(dict):
     def __missing__(self, key: str):
-        return f"{{{key}}}"
+        return "{%s}" % key
 
 
 @dataclass(slots=True, unsafe_hash=True)
 class Language:
     name: str
-    code: str
+    code: Locale | str
     translations: dict[str, str] = field(default_factory=dict, hash=False)
 
     def _get_translation_from_key(self, key: str, raise_on_empty: bool = True) -> str:

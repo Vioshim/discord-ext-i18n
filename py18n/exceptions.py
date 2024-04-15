@@ -15,19 +15,30 @@
 # You should have received a copy of the GNU General Public License
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
+from discord import Locale
+
+__all__ = (
+    "Py18nError",
+    "InvalidLocaleError",
+    "InvalidTranslationKeyError",
+    "InvalidFallbackError",
+    "NoDefaultI18nInstanceError",
+    "TranslationKeyEmptyError",
+)
+
 
 class Py18nError(KeyError):
     ...
 
 
 class InvalidLocaleError(Py18nError):
-    def __init__(self, locale: str) -> None:
+    def __init__(self, locale: Locale | str) -> None:
         super().__init__(f"Given locale {locale!r} does not exist!")
         self.locale = locale
 
 
 class InvalidTranslationKeyError(Py18nError):
-    def __init__(self, key: str, locale: str, fallback: str) -> None:
+    def __init__(self, key: str, locale: Locale | str, fallback: Locale | str) -> None:
         super().__init__(
             f"Translation {key!r} not found for locale {locale!r}, nor fallback {fallback!r}"
         )
@@ -37,7 +48,7 @@ class InvalidTranslationKeyError(Py18nError):
 
 
 class InvalidFallbackError(Py18nError):
-    def __init__(self, fallback: str | int) -> None:
+    def __init__(self, fallback: Locale | str | int) -> None:
         super().__init__(
             f"Invalid fallback: {fallback!r}. Fallback must be a valid locale code."
         )
@@ -50,7 +61,7 @@ class NoDefaultI18nInstanceError(Py18nError):
 
 
 class TranslationKeyEmptyError(Py18nError):
-    def __init__(self, key: str, locale: str) -> None:
+    def __init__(self, key: str, locale: Locale | str) -> None:
         super().__init__(
             f"Translation for key {key!r} in language {locale!r} is empty."
         )

@@ -16,14 +16,17 @@
 # along with py18n.  If not, see <http://www.gnu.org/licenses/>.
 
 
+from __future__ import annotations
+
 import contextvars
 import re
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Type
 
 from discord import Locale
 from discord.ext import commands
 from discord.utils import _from_json, maybe_coroutine
+from functools import partial
 
 from .exceptions import NoDefaultI18nInstanceError
 from .i18n import I18n
@@ -31,18 +34,23 @@ from .language import Language
 
 PARSER = re.compile(r"\{\{([^{}]+)\}\}", re.MULTILINE)
 
+__all__ = (
+    "I18nExtension",
+    "get_locale_or_fallback",
+    "flatten_dict",
+)
 
-def get_locale_or_fallback(fallback: str | int | Locale):
+
+def get_locale_or_fallback(fallback: Locale | str):
     """Get the locale from the context or fallback to the given locale.
 
     Parameters
     ----------
-    fallback : str | int | Locale
+    fallback : Locale | str
         The locale to fallback to if no locale is found.
     """
-    fallback = str(fallback) if isinstance(fallback, Locale) else fallback
 
-    def inner(ctx: commands.Context) -> str:
+    def inner(ctx: commands.Context):
         if ctx.interaction:
             return str(ctx.interaction.locale)
         if ctx.guild:
@@ -52,41 +60,40 @@ def get_locale_or_fallback(fallback: str | int | Locale):
     return inner
 
 
-def flatten_dict(d: dict, sep: str = ".") -> dict:
+def flatten_dict(d: dict, delimiter: str = ".", dict_cls: Type[dict] = dict):
     def _flatten(current_dict: dict, key_prefix: str = ""):
         items = {}
         for k, v in current_dict.items():
-            new_key = f"{key_prefix}{sep}{k}" if key_prefix else k
-            
+            new_key = f"{key_prefix}{delimiter}{k}" if key_prefix else k
+
             if isinstance(v, dict):
                 items.update(_flatten(v, new_key))
             elif isinstance(v, list):
                 for i, item in enumerate(v):
-                    sub_key = f"{new_key}{sep}{i}"
+                    sub_key = f"{new_key}{delimiter}{i}"
                     if isinstance(item, dict):
                         items.update(_flatten(item, sub_key))
                     else:
                         items[sub_key] = item
             else:
                 items[new_key] = v
-                
+
         return items
 
-    return _flatten(d)
+    return dict_cls(_flatten(d))
 
 
 class I18nExtension(I18n):
-    default_instance: Optional["I18nExtension"] = None
+    default_instance: Optional[I18nExtension] = None
 
     def __init__(
         self,
         languages: list[Language],
-        fallback: str | int | Locale,
+        fallback: Locale | str = Locale.american_english,
         bot: Optional[commands.Bot] = None,
-        get_locale_func: Callable[[commands.Context], str] = None,
+        get_locale_func: Optional[Callable[[commands.Context], Locale | str]] = None,
         default: bool = True,
     ) -> None:
-        fallback = fallback if isinstance(fallback, (str, int)) else str(fallback)
         super(I18nExtension, self).__init__(languages, fallback)
         self._current_locale = contextvars.ContextVar("_current_locale")
         self._bot = None
@@ -95,12 +102,13 @@ class I18nExtension(I18n):
             I18nExtension.default_instance = self
 
         if bot:
-            self.init_bot(bot, get_locale_func or get_locale_or_fallback(fallback))
+            locale_func = get_locale_func or get_locale_or_fallback(self._fallback)
+            self.init_bot(bot, locale_func)
 
     def init_bot(
         self,
         bot: commands.Bot,
-        get_locale_func: Callable[[commands.Context], str] = None,
+        get_locale_func: Optional[Callable[[commands.Context], Locale | str]] = None,
     ):
         """Initialize the bot with this extension.
 
@@ -108,7 +116,7 @@ class I18nExtension(I18n):
         ----------
         bot : commands.Bot
             The bot to initialize with.
-        get_locale_func : Callable[[commands.Context], str], optional
+        get_locale_func : Callable[[commands.Context], Locale | str], optional
             A function to get the locale from the context, by default None.
         """
         self._bot = bot
@@ -122,35 +130,34 @@ class I18nExtension(I18n):
 
         self._bot.before_invoke(pre)
 
-    def set_current_locale(self, locale: str) -> None:
+    def set_current_locale(self, locale: Locale | str):
         self._current_locale.set(locale)
 
-    def get_current_locale(self) -> str:
+    def get_current_locale(self) -> Locale | str:
         return self._current_locale.get(self._fallback)
 
     @classmethod
     def contextual_get_text(
         cls,
         key: str,
-        locale: Optional[str | int | Locale] = None,
-        list_formatter: bool = None,
+        locale: Optional[Locale | str] = None,
+        list_formatter: Optional[Callable[[list[str]], str]] = None,
         use_translations: bool = True,
         should_fallback: bool = True,
         raise_on_empty: bool = False,
         **kwargs,
     ) -> str:
         i18n = cls.default_instance
+
         if i18n is None:
             raise NoDefaultI18nInstanceError()
 
         if locale is None:
             locale = i18n.get_current_locale()
-        else:
-            locale = str(locale) if isinstance(locale, Locale) else locale
 
         return i18n.get_text(
-            key,
-            locale,
+            key=key,
+            locale=locale,
             list_formatter=list_formatter,
             use_translations=use_translations,
             should_fallback=should_fallback,
@@ -175,18 +182,19 @@ class I18nExtension(I18n):
         a, *_, b = filename.removesuffix(".json").split("_")
         return a, b
 
+
     @classmethod
     def load(
         cls,
-        bot: commands.Bot,
+        bot: Optional[commands.Bot] = None,
         path: str = ".",
-        fallback: str | int | Locale = Locale.american_english,
+        fallback: Locale | str = Locale.american_english,
         pattern: str = "**/*.json",
         from_json: Callable[[str], dict] = _from_json,
         method: Optional[Callable[[str], tuple[str, str]]] = None,
         delimiter: str = ".",
         dict_cls: type[dict] = dict,
-        get_locale_func: Callable[[commands.Context], str] = None,
+        get_locale_func: Optional[Callable[[commands.Context], str]] = None,
     ):
         """Load the languages from a glob pattern.
 
@@ -196,7 +204,7 @@ class I18nExtension(I18n):
             The bot to initialize with.
         path : str, optional
             The path to the directory. By default current directory.
-        fallback : str | int | Locale, optional
+        fallback : Locale | str, optional
             The locale to fallback to if no locale is found. By default american_english.
         pattern : str, optional
             The glob pattern to search for, by default "**/*.json".
@@ -215,7 +223,15 @@ class I18nExtension(I18n):
 
         return cls(
             languages=[
-                Language(name=name, code=code, translations=flatten_dict(item))
+                Language(
+                    name=name,
+                    code=code,
+                    translations=flatten_dict(
+                        item,
+                        delimiter=delimiter,
+                        dict_cls=dict_cls,
+                    ),
+                )
                 for name, code, item in map(
                     lambda x: (
                         *method(x.name),
@@ -224,21 +240,23 @@ class I18nExtension(I18n):
                     route.glob(pattern),
                 )
             ],
-            fallback=str(fallback) if isinstance(fallback, Locale) else fallback,
+            fallback=fallback,
             bot=bot,
             get_locale_func=get_locale_func,
         )
 
     @classmethod
-    def unload(cls, bot: commands.Bot, remove_before_invoke: bool = False):
+    def unload(cls, bot: Optional[commands.Bot] = None, remove_before_invoke: bool = False):
         """Unload the languages from the class"""
 
         i18n = cls.default_instance
         if i18n is None:
             raise NoDefaultI18nInstanceError()
 
-        if remove_before_invoke:
+        if bot and remove_before_invoke:
             bot._before_invoke = None
+
+        cls.default_instance = None
         i18n._bot = None
         i18n._current_locale = contextvars.ContextVar("_current_locale")
 
