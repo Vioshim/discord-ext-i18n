@@ -20,5 +20,6 @@ from .exceptions import *
 from .extension import *
 from .i18n import *
 from .language import *
+from .translator import *
 
 __version__ = "1.0.1"

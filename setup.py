@@ -34,7 +34,7 @@ setup(
     author="Vioshim",
     url="https://github.com/Vioshim/discord-ext-i18n",
     keywords=["discord.py", "discord", "i18n", "asyncio"],
-    version="1.0.0",
+    version="1.0.1",
     packages=["discord.ext.i18n"],
     include_package_data=True,
     license="GNU General Public License v3",
