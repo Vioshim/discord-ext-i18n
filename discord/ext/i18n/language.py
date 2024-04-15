@@ -17,11 +17,11 @@
 
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Generic, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
 
 from discord import Locale
 
-from exceptions import TranslationKeyEmptyError
+from .exceptions import TranslationKeyEmptyError
 
 __all__ = ("Language", "SafeDict")
 
@@ -29,7 +29,8 @@ __all__ = ("Language", "SafeDict")
 class SafeDict(dict):
     def __missing__(self, key: str):
         return "{%s}" % key
-    
+
+
 L = TypeVar("L", Locale, str)
 
 

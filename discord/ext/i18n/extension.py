@@ -19,19 +19,20 @@
 from __future__ import annotations
 
 import contextvars
-from functools import partial
 import re
+from functools import partial
 from pathlib import Path
 from typing import Callable, Optional, Type, TypeVar
 
+from discord.utils import _from_json, maybe_coroutine
+from yaml import safe_load as yaml_load
+
 from discord import Locale
 from discord.ext import commands
-from discord.utils import _from_json, maybe_coroutine
 
-from exceptions import NoDefaultI18nInstanceError
-from i18n import I18n
-from yaml import safe_load as yaml_load
-from language import Language
+from .exceptions import NoDefaultI18nInstanceError
+from .i18n import I18n
+from .language import Language
 
 PARSER = re.compile(r"\{\{([^{}]+)\}\}", re.MULTILINE)
 
@@ -44,8 +45,6 @@ __all__ = (
 )
 
 L = TypeVar("L", Locale, str)
-
-
 
 
 def flatten_dict(d: dict, delimiter: str = ".", dict_cls: Type[dict] = dict):
@@ -69,7 +68,6 @@ def flatten_dict(d: dict, delimiter: str = ".", dict_cls: Type[dict] = dict):
         return items
 
     return dict_cls(_flatten(d))
-
 
 
 class I18nExtension(I18n[L]):
@@ -111,7 +109,7 @@ class I18nExtension(I18n[L]):
             return fallback
 
         return inner
-    
+
     def init_bot(
         self,
         bot: commands.Bot,
@@ -194,7 +192,7 @@ class I18nExtension(I18n[L]):
             The name and code.
         """
         name = route.stem
-        
+
         if "_" in name:
             lang_name, *_, lang_code = name.split("_")
         else:

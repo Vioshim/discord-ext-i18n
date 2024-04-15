@@ -17,16 +17,16 @@
 
 
 from logging import getLogger
-from typing import Callable, Optional, TypeVar, Generic, Iterable
+from typing import Callable, Generic, Iterable, Optional, TypeVar
 
 from discord import Locale
 
-from exceptions import (
+from .exceptions import (
     InvalidFallbackError,
     InvalidLocaleError,
     InvalidTranslationKeyError,
 )
-from language import Language
+from .language import Language
 
 __all__ = ("I18n", "Language")
 
@@ -37,7 +37,6 @@ L = TypeVar("L", Locale, str)
 
 
 class I18n(Generic[L]):
-    
     __slots__ = ("_languages", "_fallback")
 
     def __init__(
