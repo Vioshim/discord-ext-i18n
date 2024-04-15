@@ -33,119 +33,60 @@ You can now use the library!
 ## Usage
 
 ### Setting up languages
-A language can be initialized like this:
-```python
-french = Language("fr", "French", {
-    "hello": "Bonjour",
-    "goodbye": "Au revoir",
-    "francais": "Français"
-})
-```
 
-But you may want to store languages seperately and create them as follows:
-```python
-import json
-french = Language("fr", translations=json.load(open("fr.json")))
-```
+This library is meant to be flexible when it comes to using i18n, by default it'll try to load from the folder `locale`.
 
-### Base I18n class
-When setting up the i18n class, we need to setup our languages and declare a fallback language:
-```python
-i18n = I18n([
-    Language("en", translations={
-        "hello": "Hello",
-        "goodbye": "Goodbye",
-        "english": "English"
-    }),
-    Language("fr", translations={
-        "hello": "Bonjour",
-        "goodbye": "Au revoir",
-        "francais": "Français"
-    }),
-], fallback="en")
-```
+In this example, we'll create a file `locale/en-US.json`
+which will have the following information.
 
-`i18n` will now fallback to english if it can't find a translation for other languages.
-```python
->>> i18n.get_text("hello", "en")
-'Hello'
->>> i18n.get_text("hello", "fr")
-'Bonjour'
->>> # "english" is not a listed translation in the French locale, so we revert to english
->>> i18n.get_text("english", "fr")
-'English'
->>> # However we can make it not fallback, but this will throw an error if the translation isn't found
->>> i18n.get_text("english", "fr", should_fallback=False) 
-Traceback (most recent call last):
-  ...      
-discord.ext.i18n.InvalidTranslationKeyError: 'Translation foo not found for en!'
-```
-
-### Discord
-For Discord.py, we can use the extension `py18n.extension.I18nExtension`. Setup your bot as you would usually, and then run `i18n.init_bot` as follows.
-
-```python
-from discord import Intents
-from discord.ext import commands
-from discord.ext.i18n import I18nExtension
-
-# Make our bot
-bot = commands.Bot("prefix", intents=Intents.default())
-
-# Setup similarly to the usual class
-i18n = I18nExtension([
-    Language("en", "English", {
-        "hello": "Hello",
-        "goodbye": "Goodbye",
-        "english": "English"
-    }),
-    Language("fr", "French", {
-        "hello": "Bonjour",
-        "goodbye": "Au revoir",
-        "francais": "Français"
-    }),
-], fallback="en")
-
-# Setup the bot by giving it a function to get the user's locale.
-# This could potentially refer to a database or other file.
-# Anything you want!
-# Otherwise, it will always be the fallback locale.
-async def get_locale(ctx: commands.Context):
-    preferences = {
-       301736945610915852: "fr"
+```json
+{
+    "Hello": "Hello there, {{author}}",
+    "commands": {
+        "hello": {
+            "name": "hello",
+            "description": "A command to say hello",
+            "params": {
+                "name": "user",
+                "description": "User that you want to greet"
+            },
+        }
     }
-    return preferences.get(ctx.author.id, "en")
+}
 
-# Set it up!
-i18n.init_bot(bot, get_locale)
-
-@bot.hybrid_command()
-async def hello(ctx: commands.Context):
-    await ctx.reply(i18n.contextual_get_text("hello"))
 ```
 
-This is all good, but because of our line `i18n.init_bot(bot, get_locale)`, we can shorten things.
+### Installing in Discord.py
+It's important in this step to install `I18nTranslator`, this class can be inherited and adjusted as needed.
+By default it has a basic setup which works in the following way.
 
-This function adds a pre-invoke hook that sets the language based on the result of `get_locale`. The `contextually_get_text` function is also exposed as `py18n.extension._`, and it is a `classmethod`.
-
-We can change it by adding the following import and change our function:
 ```python
-from discord.ext.i18n import _
+from discord import Intents, Member
+from discord.ext import commands
+from discord.ext.i18n import I18nTranslator, _
 
-# ...
+class Translator(I18nTranslator):
+    fallback = Locale.american_english
+
+    async def get_locale(self, ctx: commands.Context) -> Locale:
+        preferences = {678374009045254198: "es-419"}
+        return preferences.get(ctx.author.id, self.fallback)
+
+class Bot(commands.Bot):
+    async def setup_hook(self):
+        await self.tree.set_translator(Translator(bot))
+
+bot = Bot("prefix", intents=Intents.default())
 
 @bot.hybrid_command()
-async def hello(ctx: commands.Context):
-    await ctx.reply(_("hello"))
+async def hello(ctx: commands.Context, user: Member = commands.Author):
+    await ctx.reply(_("Hello", author=user.mention))
 ```
-
-There, much tidier!
-- The `_` function considers the current context and uses the correct locale by default.
-- When initializing any `I18nExtension`, as we did earlier, it becomes the default i18n instance. The default instance is used by `_` and `contextually_get_text`.
 
 ## Issues
 If you encounter any problems, check out [current issues](https://github.com/Vioshim/discord-ext-i18n/issues) or [make a new issue](https://github.com/Vioshim/discord-ext-i18n/issues/new).
 
 ## Notes
 - This project is a fork of [Py18n](https://github.com/starsflower/py18n)
+- Project example that does make use of this library [D-Proxy](https://github.com/Vioshim/DProxy-i18n)
 - Feel free to contribute! This is released under the GLP-3 license. (If you suggest another license, make an issue suggesting).
