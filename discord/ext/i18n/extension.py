@@ -22,7 +22,7 @@ import contextvars
 import re
 from functools import partial
 from pathlib import Path
-from typing import Callable, Optional, Type, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
 from discord.utils import _from_json, maybe_coroutine
 from yaml import safe_load as yaml_load
@@ -47,27 +47,23 @@ __all__ = (
 L = TypeVar("L", Locale, str)
 
 
-def flatten_dict(d: dict, delimiter: str = ".", dict_cls: Type[dict] = dict):
-    def _flatten(current_dict: dict, key_prefix: str = ""):
+def flatten_dict(data: dict[str, Any] | list, delimiter: str = "."):
+    def _flatten(current_dict: dict[str, Any] | list, key_prefix: str = ""):
+        if isinstance(current_dict, list):
+            pairs = enumerate(current_dict)
+        else:
+            pairs = current_dict.items()
+
         items = {}
-        for k, v in current_dict.items():
-            new_key = f"{key_prefix}{delimiter}{k}" if key_prefix else k
-
-            if isinstance(v, dict):
-                items.update(_flatten(v, new_key))
-            elif isinstance(v, list):
-                for i, item in enumerate(v):
-                    sub_key = f"{new_key}{delimiter}{i}"
-                    if isinstance(item, dict):
-                        items.update(_flatten(item, sub_key))
-                    else:
-                        items[sub_key] = item
+        for k, v in pairs:
+            key = f"{key_prefix}{delimiter}{k}" if key_prefix else f"{k}"
+            if isinstance(v, (dict, list)):
+                items.update(_flatten(v, key))
             else:
-                items[new_key] = v
-
+                items[key] = v
         return items
 
-    return dict_cls(_flatten(d))
+    return dict(_flatten(data))
 
 
 class I18nExtension(I18n[L]):
@@ -178,6 +174,7 @@ class I18nExtension(I18n[L]):
     def parser(
         route: Path,
         method: Callable[[str], dict[str, str]] = _from_json,
+        delimiter: str = ".",
     ) -> tuple[str, Locale | str, dict[str, str]]:
         """Get the name and code from the filename, popular i18n file naming convention.
 
@@ -198,7 +195,10 @@ class I18nExtension(I18n[L]):
         else:
             lang_name, lang_code = name, ""
 
-        info = method(route.read_text(encoding="utf-8"))
+        info = flatten_dict(
+            method(route.read_text(encoding="utf-8")),
+            delimiter=delimiter,
+        )
 
         try:
             item = Locale(lang_code or lang_name)
@@ -220,10 +220,9 @@ class I18nExtension(I18n[L]):
         bot: Optional[commands.Bot] = None,
         path: str = ".",
         fallback: Optional[L] = None,
-        pattern: str = "**/*.json",
+        pattern: str = "*.json",
         method: Callable[[str], dict[str, str]] = _from_json,
         delimiter: str = ".",
-        dict_cls: type[dict] = dict,
         get_locale_func: Optional[Callable[[commands.Context], L]] = None,
     ):
         """Load the languages from a glob pattern.
@@ -242,23 +241,18 @@ class I18nExtension(I18n[L]):
             The method to use to parse the file, by default discord.utils._from_json.
         delimiter : str, optional
             The delimiter to use for the translations, by default ".".
-        dict_cls : type[dict], optional
-            The dictionary class to use for the translations, by default dict.
         get_locale_func : Callable[[commands.Context], str], optional
             A function to get the locale from the context, by default None.
         """
+
         route = Path(path)
-        name_code_method = partial(cls.parser, method=method)
+        name_code_method = partial(cls.parser, method=method, delimiter=delimiter)
         return cls(
             languages=[
-                Language(
+                Language[L](
                     name=name,
                     code=code,  # type: ignore
-                    translations=flatten_dict(
-                        info,
-                        delimiter=delimiter,
-                        dict_cls=dict_cls,
-                    ),
+                    translations=info,
                 )
                 for name, code, info in map(name_code_method, route.glob(pattern))
             ],
@@ -276,7 +270,6 @@ class I18nExtension(I18n[L]):
         pattern: str = "**/*.yaml",
         method: Callable[[str], dict[str, str]] = yaml_load,
         delimiter: str = ".",
-        dict_cls: type[dict] = dict,
         get_locale_func: Optional[Callable[[commands.Context], str]] = None,
     ):
         """Shortcut to load yaml files."""
@@ -287,7 +280,6 @@ class I18nExtension(I18n[L]):
             pattern=pattern,
             method=method,
             delimiter=delimiter,
-            dict_cls=dict_cls,
             get_locale_func=get_locale_func,
         )
 
