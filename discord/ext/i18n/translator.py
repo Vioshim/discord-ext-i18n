@@ -42,7 +42,7 @@ __all__ = ("I18nTranslator",)
 
 
 class I18nTranslator(app_commands.Translator):
-    path: str = "."
+    path: str = "locale"
     fallback: Locale = Locale.american_english
     pattern: str = "*.json"
     delimiter: str = "."
