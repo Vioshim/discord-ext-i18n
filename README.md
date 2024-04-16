@@ -61,7 +61,7 @@ It's important in this step to install `I18nTranslator`, this class can be inher
 By default it has a basic setup which works in the following way.
 
 ```python
-from discord import Intents, Member
+from discord import Locale, Intents, Member
 from discord.ext import commands
 from discord.ext.i18n import I18nTranslator, _
 
