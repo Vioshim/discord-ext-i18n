@@ -28,7 +28,7 @@ __all__ = ("Language", "SafeDict")
 
 class SafeDict(dict):
     def __missing__(self, key: str):
-        return "{%s}" % key
+        return f"{{{key}}}"
 
 
 L = TypeVar("L", Locale, str)
