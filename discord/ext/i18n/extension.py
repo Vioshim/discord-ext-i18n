@@ -196,7 +196,7 @@ class I18nExtension(I18n[L]):
             lang_name, lang_code = name, ""
 
         info = flatten_dict(
-            method(route.read_text(encoding="utf-8")),
+            method(PARSER.sub(r"{\1}", route.read_text(encoding="utf-8"))),
             delimiter=delimiter,
         )
 
