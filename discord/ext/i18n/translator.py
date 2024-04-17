@@ -104,7 +104,7 @@ class I18nTranslator(app_commands.Translator):
                 key = f"commands.{text}.params.{ref}.{info}"
 
             case TranslationContextLocation.choice_name:  # Choice
-                if route := string.extras.get("locale", ""):
+                if route := string.extras.get("i18n", ""):
                     *items, command = route.split(".")
                     text = ".group.".join(items)
                     key = f"commands.{text}.params.{command}.choices.{string.message}"
